@@ -54,7 +54,7 @@ def deploy_customisations():
 	# Setting a firewall
 	ssh.exec_command('/usr/local/bin/firewall start')
 	
-def deploy_script():
+def deploy_scripts():
 	# Open an SFTP connection for transferring files
         ftp = ssh.open_sftp()
 
@@ -115,7 +115,7 @@ def main():
 
 	# Deploy our scripts
 	print "Uploading scripts"
-	deploy_script()
+	deploy_scripts()
 
         # Make some customisations to the server
         print "Securing SSH, setting a firewall and self-destruct for 48 hours"
