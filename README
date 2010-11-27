@@ -12,4 +12,15 @@ Dodgy little python thing that:
 
  * emails the results to arg(2) (e-mail address)
 
+ * Halts after 48 hours
+
 Tonnes of ugly hacks at this stage, working on things from the TODO.
+
+Dependencies:
+
+ * libcloud, python, python-paramiko
+
+Usage:
+
+# python felicity $servername $email_address
+

@@ -2,11 +2,15 @@ Things to do
 
  * Improve reading in of configs, no having to hardcode the connections/drivers
 
+ * Allow for backups to come from somewhere other than Amazon S3 too. Maybe somehow inherit from the driver in use for deploying image?
+
  * Improve the efficiency of scripts, not sure if we really need to use `at` but it seemed to solve the issue of duplicity simply not running?
 
  * Improve the deployment commands (MultiStepDeployment doesn't seem to like taking an array inside an array)
 
  * There is no error checking right now
+
+ * Comment the code
 
  * Ability to choose only certain buckets and not just all for that server
 

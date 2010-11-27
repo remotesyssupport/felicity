@@ -14,7 +14,6 @@ import ConfigParser
 
 hostname = 'backup-restore-"%s"%d' % tuple([sys.argv[1], random.randrange(0, 101, 2)])
 ssh = 0
-restorer_passwd = 0
 
 def ssh_connect(remote_host):
         rsa_key = os.path.expanduser('~/.ssh/id_rsa')
@@ -87,7 +86,6 @@ def main():
 	cmd10 = ScriptDeployment("apt-get install at")
 	msd = MultiStepDeployment([cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7, cmd8, cmd9, cmd10]) 
 
-	# deploy_node takes the same base keyword arguments as create_node.
 	print "Provisioning server and running deployment processes"
 	node = conn.deploy_node(name=hostname, image=dist_image[0], size=sizes[0], deploy=msd)
 
