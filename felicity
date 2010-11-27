@@ -12,8 +12,18 @@ import random
 import sys
 import ConfigParser
 
-hostname = 'backup-restore-"%s"%d' % tuple([sys.argv[1], random.randrange(0, 101, 2)])
 ssh = 0
+# Fetch some values from the config file
+config = ConfigParser.RawConfigParser()
+config.read('config/felicity.ini')
+
+user = config.get('Rackspace', 'user')
+key = config.get('Rackspace', 'key')
+config_distro = config.get('Rackspace', 'distro')
+config_size = config.get('Rackspace', 'size')
+email = config.get('Felicity', 'email')
+server = sys.argv[1]
+hostname = 'backup-restore-"%s"%d' % tuple([server, random.randrange(0, 101, 2)])
 
 def ssh_connect(remote_host):
         rsa_key = os.path.expanduser('~/.ssh/id_rsa')
@@ -22,81 +32,94 @@ def ssh_connect(remote_host):
         ssh = paramiko.SSHClient()
         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         ssh.load_system_host_keys()
-	print "Connecting via SSH to %s" % remote_host
         ssh.connect(remote_host, username='root', pkey=mykey)
 
 def ssh_close():
-	print "Closing SSH connection"
 	ssh.close()
 
-def run_script():
-	print "Preparing restore script to run"
-	ssh.exec_command('echo "/usr/local/bin/backup_restore_wrapper %s %s" | at now + 1 minute' % tuple([ sys.argv[1], sys.argv[2]]))
-	print "Setting self-destruct for 48 hours"
-        ssh.exec_command('echo "halt" | at now + 2 days')
-	print "Disabling password authentication in SSH"
+def deploy_customisations():
+	# Setting self-destruct for 48 hours
+	ssh.exec_command('echo "halt" | at now + 2 days')
+
+	# Disabling password authentication in SSH
 	ssh.exec_command('sed -i -r -e "s/^[ #]*(PasswordAuthentication).*/\1 no/" /etc/ssh/sshd_config')
 	ssh.exec_command('/etc/init.d/ssh restart')
-	print "Setting a firewall"
+
+	# Setting a firewall
 	ssh.exec_command('update-rc.d /etc/init.d/firewall defaults')
 	ssh.exec_command('/etc/init.d/firewall start')
-
+	
 def deploy_script():
+	# Open an SFTP connection for transferring files
         ftp = ssh.open_sftp()
-	print "Uploading scripts"	
-        ftp.put(os.path.expanduser('scripts/backup_restore_wrapper'), '/usr/local/bin/backup_restore_wrapper')
-        ftp.put(os.path.expanduser('scripts/backup_restore'), '/usr/local/bin/backup_restore')
-        ftp.put(os.path.expanduser('scripts/backup_list_buckets'), '/usr/local/bin/backup_list_buckets')
-	ftp.put(os.path.expanduser('config/backup_restore_creds'), '/usr/local/etc/backup_restore_creds')
-	ftp.put(os.path.expanduser('scripts/firewall'), '/etc/init.d/firewall')
 
-	scripts = ['/usr/local/bin/backup_restore_wrapper', '/usr/local/bin/backup_restore', '/usr/local/bin/backup_list_buckets', '/etc/init.d/firewall']
+        scripts = ['backup_restore_wrapper', 'backup_restore', 'backup_list_buckets', 'firewall']
 	for script in scripts:
-		script_file = ftp.open(script, 'r')
+        	ftp.put(os.path.expanduser('scripts/' + script), '/usr/local/bin/' + script)
+		script_file = ftp.open('/usr/local/bin/' + script, 'r')
 		script_file.chmod(0755)
 		script_file.close()
+
+	configs = ['backup_restore_creds']
+	for config in configs:
+		ftp.put(os.path.expanduser('config/' + config), '/usr/local/etc/' + config)
+
 	ftp.close()
 
+def run_script():
+	# Preparing restore script to run
+	ssh.exec_command('echo "/usr/local/bin/backup_restore_wrapper %s %s" | at now + 1 minute' % tuple([ server, email]))
+
 def main():
-
-	config = ConfigParser.RawConfigParser()
-	config.read('config/felicity.ini')
-	user = config.get('Rackspace', 'user')
-	key = config.get('Rackspace', 'key')
-	distro = config.get('Rackspace', 'distro')
-
+	# Make a new connection using Rackspace for now
 	Driver = get_driver(Provider.RACKSPACE) 
 	conn = Driver(user, key)
 
+	# Get a list of the available images and sizes
 	images = conn.list_images()
 	sizes = conn.list_sizes()
 
-	dist_image = [image for image in images if distro in image.name]
-	assert len(dist_image) == 1, "We found more than one image for %s, will be assuming the first one" % distro
+	# We'll use the distro and size from the config ini
+	preferred_image = [image for image in images if config_distro in image.name]
+	assert len(preferred_image) == 1, "We found more than one image for %s, will be assuming the first one" % config_distro
+
+	preferred_size = [size for size in sizes if config_size in size.name]
 
 	cmd1 = SSHKeyDeployment(open(os.path.expanduser("~/.ssh/id_rsa.pub")).read())
 	cmd2 = ScriptDeployment("echo 'deb http://www.backports.org/debian lenny-backports main contrib non-free' >> /etc/apt/sources.list")
 	cmd3 = ScriptDeployment("apt-get update")
 	cmd4 = ScriptDeployment("apt-get -y -t lenny-backports install duplicity")
-	cmd5 = ScriptDeployment("apt-get -y install python-boto")
-	cmd6 = ScriptDeployment("echo 'postfix postfix/main_mailer_type select Internet Site' | debconf-set-selections")
-	cmd7 = ScriptDeployment("echo 'postfix postfix/mailname string $HOSTNAME' | debconf-set-selections")
-	cmd8 = ScriptDeployment("echo 'postfix postfix/destinations string localhost.localdomain, localhost' | debconf-set-selections")
-	cmd9 = ScriptDeployment("apt-get -y install postfix mailx")
-	cmd10 = ScriptDeployment("apt-get install at")
-	msd = MultiStepDeployment([cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7, cmd8, cmd9, cmd10]) 
+	cmd5 = ScriptDeployment("echo 'postfix postfix/main_mailer_type select Internet Site' | debconf-set-selections")
+	cmd6 = ScriptDeployment("echo 'postfix postfix/mailname string $HOSTNAME' | debconf-set-selections")
+	cmd7 = ScriptDeployment("echo 'postfix postfix/destinations string localhost.localdomain, localhost' | debconf-set-selections")
+	cmd8 = ScriptDeployment("apt-get -y install postfix mailx python-boto at")
+	msd = MultiStepDeployment([cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7, cmd8]) 
 
+	# Create and deploy a new server now, and run the deployment steps defined above
 	print "Provisioning server and running deployment processes"
-	node = conn.deploy_node(name=hostname, image=dist_image[0], size=sizes[0], deploy=msd)
+	node = conn.deploy_node(name=hostname, image=preferred_image[0], size=preferred_size[0], deploy=msd)
 
+	# This is the public IP of the new server that will be used for further steps
 	remote_host = node.public_ip[0]
 
+	# Connect to the new server
+	print "Connecting to %s" % remote_host
 	ssh_connect(remote_host)
 
+	# Make some customisations to the server
+	print "Securing SSH, setting a firewall and self-destruct for 48 hours"
+	deploy_customisations()
+
+	# Deploy our scripts
+	print "Uploading scripts"
 	deploy_script()
 
+	# Run the backup restore script
+	print "Executing the backup restore script"
 	run_script()
 
+	# End the SSH session
+	print "Closing SSH session"
 	ssh_close()
 
 
