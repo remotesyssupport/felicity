@@ -52,8 +52,7 @@ def deploy_customisations():
 	ssh.exec_command('/etc/init.d/ssh restart')
 
 	# Setting a firewall
-	ssh.exec_command('update-rc.d /etc/init.d/firewall defaults')
-	ssh.exec_command('/etc/init.d/firewall start')
+	ssh.exec_command('/usr/local/bin/firewall start')
 	
 def deploy_script():
 	# Open an SFTP connection for transferring files
@@ -114,13 +113,13 @@ def main():
 	print "Connecting to %s" % remote_host
 	ssh_connect(remote_host)
 
-	# Make some customisations to the server
-	print "Securing SSH, setting a firewall and self-destruct for 48 hours"
-	deploy_customisations()
-
 	# Deploy our scripts
 	print "Uploading scripts"
 	deploy_script()
+
+        # Make some customisations to the server
+        print "Securing SSH, setting a firewall and self-destruct for 48 hours"
+        deploy_customisations()
 
 	# Run the backup restore script
 	print "Executing the backup restore script"
