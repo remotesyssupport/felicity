@@ -1,0 +1,31 @@
+#!/bin/bash
+
+# Source the creds
+source /usr/local/etc/backup_restore_creds
+
+SERVER=$1
+EMAIL=$2
+
+# Run the main script
+sh /usr/local/bin/backup_restore $SERVER > $HOME/emailmessage.txt
+
+unset PASSPHRASE
+
+# Cleanup
+sed -i '/^Copying duplicity/d' $HOME/emailmessage.txt
+sed -i '/^Deleting local/d' $HOME/emailmessage.txt
+sed -i '/^Local and Remote metadata/d' $HOME/emailmessage.txt
+sed -i '/^Archive dir/d' $HOME/emailmessage.txt
+sed -i '/^Connecting with backend/d' $HOME/emailmessage.txt
+sed -i '/^Synchronizing remote metadata to local cache/d' $HOME/emailmessage.txt
+
+# Email the report
+SUBJECT="Backup restore of $SERVER"
+
+mail -s "$SUBJECT" "$EMAIL" < $HOME/emailmessage.txt
+
+# Remove the email log
+rm $HOME/emailmessage.txt
+
+# Remove the duplicity cache
+rm -rf $HOME/.cache/duplicity

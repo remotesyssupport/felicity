@@ -1,0 +1,15 @@
+Dodgy little python thing that:
+
+ * Deploys a new server at Rackspace Cloud (by way of libcloud)
+
+ * Installs a bunch of stuff like duplicity, python-boto, some scripts
+
+ * Sets up a firewall, configures ssh to reject password auth
+
+ * Runs a restore of backups from the Amazon S3 cloud based buckets found that match arg(1) (server name)
+
+ * Runs a collection-status on the backups too
+
+ * emails the results to arg(2) (e-mail address)
+
+Tonnes of ugly hacks at this stage, working on things from the TODO.

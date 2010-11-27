@@ -1,0 +1,53 @@
+#!/bin/bash
+
+#    Backup restore script
+#
+#    Copyright (C) 2010 Miguel Jacq
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see http://www.gnu.org/licenses/.
+
+source /usr/local/etc/backup_restore_creds
+
+if [ -z "$1" ]; then
+  echo "No server name provided."
+  exit 1
+fi
+
+shopt -s nullglob
+
+IP=`/sbin/ifconfig eth0 | grep "inet addr" | awk '{print $2}' | cut -d: -f2`
+SERVER=$1
+
+# Restore directory
+RESTORE_DIR=/tmp/backups/$SERVER-`date '+%F-%H%M'`
+
+BUCKETS=`python /usr/local/bin/backup_list_buckets $SERVER`
+
+# Greeting text for the email report
+echo "This is a backup restore of $SERVER executed on `date '+%F'` at `date '+%H:%M'`."
+echo "The backups will be restored to $RESTORE_DIR on a temporary server with the IP $IP"
+echo "This machine will self destruct after 48 hours."
+echo "----------------------------------------------------------------------------"
+
+# Loop over the backup directories and do a restore of each one to 
+# a subdirectory of $RESTORE_DIR
+for bucket in ${BUCKETS[*]}; do
+  echo "Creating $RESTORE_DIR/$bucket"
+  mkdir -p $RESTORE_DIR/$bucket
+  echo "Restoring $SERVER bucket $bucket to $RESTORE_DIR/$bucket"
+  duplicity restore s3+http://$bucket $RESTORE_DIR/$bucket
+  echo "Now running a collection-status report of your backups in $bucket"
+  duplicity collection-status s3+http://$bucket
+  echo "----------------------------------------------------------------------------"
+done

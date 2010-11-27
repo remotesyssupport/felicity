@@ -1,0 +1,72 @@
+#!/bin/bash
+ 
+# IP interfaces
+eth0=`ifconfig eth0 | grep "inet addr" | awk '{print $2}' | cut -d: -f2`
+
+# Change to 1 to enable logging of dropped packets
+LOG=0
+
+flush() {
+  iptables --flush
+  iptables --delete-chain
+}
+ 
+start() {
+ 
+  # Flush just in case 'start' has been called twice without stop or restart
+  flush
+ 
+  # Default policies
+  iptables --policy INPUT DROP
+  iptables --policy OUTPUT DROP
+  iptables --policy FORWARD DROP
+ 
+  # Accept all on loopback
+  iptables -A INPUT -i lo -j ACCEPT
+  iptables -A OUTPUT -o lo -j ACCEPT
+ 
+  # Accept all packets that are part of an established connection
+  iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
+  iptables -A OUTPUT -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+ 
+  # Pings
+  iptables -A INPUT -p icmp --icmp-type 8 -s 0/0 -d $eth0 -m state --state NEW,ESTABLISHED,RELATED -j ACCEPT
+  iptables -A OUTPUT -p icmp --icmp-type 0 -s $eth0 -d 0/0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+ 
+  # SSH
+  iptables -I INPUT -d $eth0 -p tcp --dport 22 -j ACCEPT
+ 
+  if [ $LOG -eq 1 ]; then
+    # Create a LOGDROP chain to log and drop packets
+    iptables -N LOGDROP
+    iptables -A LOGDROP -j LOG
+    iptables -A LOGDROP -j DROP
+    # Drop and log all other traffic inbound
+    iptables -A INPUT -j LOGDROP
+  else
+    # Drop all other traffic inbound
+    iptables -A INPUT -j DROP
+  fi  
+}
+ 
+stop() {
+  flush
+  iptables --policy INPUT ACCEPT
+  iptables --policy OUTPUT ACCEPT
+  iptables --policy FORWARD ACCEPT
+}
+ 
+case "$1" in
+  start)
+    start
+  ;;
+  stop)
+    stop
+  ;;
+  restart)
+    stop
+    start
+  ;;
+  *)
+  ;;
+esac
