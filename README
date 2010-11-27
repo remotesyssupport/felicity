@@ -10,7 +10,7 @@ Dodgy little python thing that:
 
  * Runs a collection-status on the backups too
 
- * emails the results to arg(2) (e-mail address)
+ * emails the results
 
  * Halts after 48 hours
 
@@ -22,5 +22,6 @@ Dependencies:
 
 Usage:
 
-# python felicity $servername $email_address
+ * Read the config/felicity.ini and update to suit.
+ * python felicity $servername
 

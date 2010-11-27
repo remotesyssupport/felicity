@@ -1,6 +1,14 @@
 Things to do
+============
+
+Definitely
+----------
+
+ * There is no error checking right now
 
  * Improve reading in of configs, no having to hardcode the connections/drivers
+
+ * make things more configurable in .ini
 
  * Allow for backups to come from somewhere other than Amazon S3 too. Maybe somehow inherit from the driver in use for deploying image?
 
@@ -8,22 +16,17 @@ Things to do
 
  * Improve the deployment commands (MultiStepDeployment doesn't seem to like taking an array inside an array)
 
- * There is no error checking right now
+ * work out a way to **actually** self destruct and not just halt
 
- * Comment the code
+Maybes
+------
+
+ * perhaps don't deploy on RackSpace cloud. Seems every now and then RS has a bug where networking doesn't work until reboot of the guest
 
  * Ability to choose only certain buckets and not just all for that server
 
  * Perhaps pythonise the whole thing, no shell scripts
 
- * allow SSH in from only the machine issuing the command?
-
- * make things more configurable in .ini
-
- * perhaps don't deploy on RackSpace cloud. Seems every now and then RS has a bug where networking doesn't work until reboot of the guest
-
  * make a Drupal module that executes this and takes Provider/User/API key from a form (security issues?)
-
- * work out a way to **actually** self destruct and not just halt
 
  * some sort of webdav or something so people don't have to ssh in unless they want to? hook in ldap auth for this? (support system)
