@@ -91,15 +91,17 @@ def main():
 
 	preferred_size = [size for size in sizes if config_size in size.name]
 
-	cmd1 = SSHKeyDeployment(open(os.path.expanduser("~/.ssh/id_rsa.pub")).read())
-	cmd2 = ScriptDeployment("echo 'deb http://www.backports.org/debian lenny-backports main contrib non-free' >> /etc/apt/sources.list")
-	cmd3 = ScriptDeployment("apt-get update")
-	cmd4 = ScriptDeployment("apt-get -y -t lenny-backports install duplicity")
-	cmd5 = ScriptDeployment("echo 'postfix postfix/main_mailer_type select Internet Site' | debconf-set-selections")
-	cmd6 = ScriptDeployment("echo 'postfix postfix/mailname string $HOSTNAME' | debconf-set-selections")
-	cmd7 = ScriptDeployment("echo 'postfix postfix/destinations string localhost.localdomain, localhost' | debconf-set-selections")
-	cmd8 = ScriptDeployment("apt-get -y install postfix mailx python-boto at")
-	msd = MultiStepDeployment([cmd1, cmd2, cmd3, cmd4, cmd5, cmd6, cmd7, cmd8]) 
+	dispatch = [ 
+		SSHKeyDeployment(open(os.path.expanduser("~/.ssh/id_rsa.pub")).read()),
+		ScriptDeployment("echo 'deb http://www.backports.org/debian lenny-backports main contrib non-free' >> /etc/apt/sources.list"),
+		ScriptDeployment("apt-get update"),
+		ScriptDeployment("apt-get -y -t lenny-backports install duplicity"),
+		ScriptDeployment("echo 'postfix postfix/main_mailer_type select Internet Site' | debconf-set-selections"),
+		ScriptDeployment("echo 'postfix postfix/mailname string $HOSTNAME' | debconf-set-selections"),
+		ScriptDeployment("echo 'postfix postfix/destinations string localhost.localdomain, localhost' | debconf-set-selections"),
+		ScriptDeployment("apt-get -y install postfix mailx python-boto at")
+	]
+	msd = MultiStepDeployment(dispatch) 
 
 	# Create and deploy a new server now, and run the deployment steps defined above
 	print "Provisioning server and running deployment processes"
