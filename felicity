@@ -17,10 +17,16 @@ ssh = 0
 config = ConfigParser.RawConfigParser()
 config.read('config/felicity.ini')
 
-user = config.get('Rackspace', 'user')
-key = config.get('Rackspace', 'key')
-config_distro = config.get('Rackspace', 'distro')
-config_size = config.get('Rackspace', 'size')
+# Try to abstract the provider here
+provider = config.get('Felicity', 'provider')
+provider_driver = config.get(provider, 'driver')
+
+user = config.get(provider, 'user')
+key = config.get(provider, 'key')
+
+config_distro = config.get(provider, 'distro')
+config_size = config.get(provider, 'size')
+
 email = config.get('Felicity', 'email')
 server = sys.argv[1]
 hostname = 'backup-restore-"%s"%d' % tuple([server, random.randrange(0, 101, 2)])
@@ -71,8 +77,8 @@ def run_script():
 	ssh.exec_command('echo "/usr/local/bin/backup_restore_wrapper %s %s" | at now + 1 minute' % tuple([ server, email]))
 
 def main():
-	# Make a new connection using Rackspace for now
-	Driver = get_driver(Provider.RACKSPACE) 
+	# Make a new connection
+	Driver = get_driver( getattr(Provider, provider_driver) )
 	conn = Driver(user, key)
 
 	# Get a list of the available images and sizes
