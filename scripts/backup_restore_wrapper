@@ -9,7 +9,11 @@ EMAIL=$2
 # Run the main script
 sh /usr/local/bin/backup_restore $SERVER > $HOME/emailmessage.txt
 
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
 unset PASSPHRASE
+
+rm /usr/local/etc/backup_restore_creds
 
 # Cleanup
 sed -i '/^Copying duplicity/d' $HOME/emailmessage.txt

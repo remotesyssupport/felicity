@@ -31,6 +31,10 @@ email = config.get('Felicity', 'email')
 server = sys.argv[1]
 hostname = 'backup-restore-"%s"%d' % tuple([server, random.randrange(0, 101, 2)])
 
+aws_access_key_id = config.get('Amazon', 'user')
+aws_secret_access_key = config.get('Amazon', 'key')
+passphrase = config.get('Felicity', 'passphrase')
+
 def ssh_connect(remote_host):
         rsa_key = os.path.expanduser('~/.ssh/id_rsa')
         mykey = paramiko.RSAKey.from_private_key_file(rsa_key)
@@ -65,9 +69,14 @@ def deploy_scripts():
 		script_file.chmod(0755)
 		script_file.close()
 
-	configs = ['backup_restore_creds']
-	for config in configs:
-		ftp.put(os.path.expanduser('config/' + config), '/usr/local/etc/' + config)
+	# Temporarily store the credentials for duplicity.
+	# This will be removed by the duplicity script itself afterwards.
+
+	file = ftp.open('/usr/local/etc/backup_restore_creds', 'w')
+	file.write('export AWS_ACCESS_KEY_ID=%s\n' % aws_access_key_id)
+	file.write('export AWS_SECRET_ACCESS_KEY=%s\n' % aws_secret_access_key)
+	file.write('export PASSPHRASE=%s' % passphrase)
+	file.close()
 
 	ftp.close()
 

@@ -17,8 +17,6 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see http://www.gnu.org/licenses/.
 
-source /usr/local/etc/backup_restore_creds
-
 if [ -z "$1" ]; then
   echo "No server name provided."
   exit 1
