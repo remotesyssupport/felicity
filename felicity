@@ -17,25 +17,53 @@ ssh = 0
 config = ConfigParser.RawConfigParser()
 config.read('config/felicity.ini')
 
-# Try to abstract the provider here
-provider = config.get('Felicity', 'provider')
-provider_driver = config.get(provider, 'driver')
+# Where will we create a new VPS?
+vpsprovider = config.get('Felicity', 'vpsprovider')
+vpsprovider_driver = config.get(vpsprovider, 'driver')
 
-user = config.get(provider, 'user')
-key = config.get(provider, 'key')
+# VPS API credentials
+# Some providers don't have user attributes, only keys
+# Bit of a hack right now
+if vpsprovider not in [ 'Slicehost', 'Linode']:
+	user = config.get(vpsprovider, 'user')
 
-config_distro = config.get(provider, 'distro')
-config_size = config.get(provider, 'size')
+key = config.get(vpsprovider, 'key')
 
+# What type and size of VPS?
+config_distro = config.get(vpsprovider, 'distro')
+config_size = config.get(vpsprovider, 'size')
+
+# Where should we send the report to?
 email = config.get('Felicity', 'email')
+
+# What server are we restoring? This will also become part of the new VPS hostname
 server = sys.argv[1]
+
+# Hostname of the new VPS
 hostname = 'backup-restore-"%s"%d' % tuple([server, random.randrange(0, 101, 2)])
 
-aws_access_key_id = config.get('Amazon', 'user')
-aws_secret_access_key = config.get('Amazon', 'key')
+# Where are the backups?
+backupprovider = config.get('Felicity', 'backupprovider')
+
+# The Duplicity passphrase, for decrypting during restore
 passphrase = config.get('Felicity', 'passphrase')
 
+
+
+def dependency_check():
+        try:
+                open(os.path.expanduser("~/.ssh/id_rsa.pub")).read()
+        except IOError:
+                print "You need at least a public key called id_rsa.pub in your .ssh directory"
+                sys.exit(1)
+        try:
+                import paramiko
+        except ImportError:
+                print "You need the Paramiko SSH module for Python installed (apt-get install python-paramiko)"
+                sys.exit(1)
+
 def ssh_connect(remote_host):
+	# Make a connection to the server
         rsa_key = os.path.expanduser('~/.ssh/id_rsa')
         mykey = paramiko.RSAKey.from_private_key_file(rsa_key)
 	global ssh
@@ -45,6 +73,7 @@ def ssh_connect(remote_host):
         ssh.connect(remote_host, username='root', pkey=mykey)
 
 def ssh_close():
+	# Close the ssh connection
 	ssh.close()
 
 def deploy_customisations():
@@ -58,48 +87,55 @@ def deploy_customisations():
 	# Setting a firewall
 	ssh.exec_command('/usr/local/bin/firewall start')
 	
-def deploy_scripts():
+def deploy_script():
 	# Open an SFTP connection for transferring files
         ftp = ssh.open_sftp()
 
-        scripts = ['backup_restore_wrapper', 'backup_restore', 'backup_list_buckets', 'firewall']
+        scripts = ['backup_list_buckets', 'backup_list_bucket_keys', 'backup_restore_wrapper', 'backup_restore', 'firewall']
 	for script in scripts:
         	ftp.put(os.path.expanduser('scripts/' + script), '/usr/local/bin/' + script)
 		script_file = ftp.open('/usr/local/bin/' + script, 'r')
 		script_file.chmod(0755)
 		script_file.close()
 
-	# Temporarily store the credentials for duplicity.
-	# This will be removed by the duplicity script itself afterwards.
-
+	# Save a file containing credentials for Duplicity. 
+	# This will be sourced by the backup_restore script
 	file = ftp.open('/usr/local/etc/backup_restore_creds', 'w')
-	file.write('export AWS_ACCESS_KEY_ID=%s\n' % aws_access_key_id)
-	file.write('export AWS_SECRET_ACCESS_KEY=%s\n' % aws_secret_access_key)
+
+	if backupprovider == "Amazon":
+		file.write('export AWS_ACCESS_KEY_ID=%s\n' % config.get('Amazon', 'user'))
+		file.write('export AWS_SECRET_ACCESS_KEY=%s\n' % config.get('Amazon', 'key'))
+	if backupprovider == "Rackspace":
+		file.write('export CLOUDFILES_USERNAME=%s\n' % config.get('Rackspace', 'user'))
+		file.write('export CLOUDFILES_APIKEY=%s\n' % config.get('Rackspace','key'))
 	file.write('export PASSPHRASE=%s' % passphrase)
 	file.close()
 
+	# Close the SFTP connection
 	ftp.close()
 
 def run_script():
 	# Preparing restore script to run
-	ssh.exec_command('echo "/usr/local/bin/backup_restore_wrapper %s %s" | at now + 1 minute' % tuple([ server, email]))
+	ssh.exec_command('echo "/usr/local/bin/backup_restore_wrapper %s %s %s" | at now + 1 minute' % tuple([ server, email, backupprovider]))
 
 def main():
-	# Make a new connection
-	Driver = get_driver( getattr(Provider, provider_driver) )
-	conn = Driver(user, key)
+        # Run some tests
+        dependency_check()
 
-	# Get a list of the available images and sizes
-	images = conn.list_images()
-	sizes = conn.list_sizes()
+	# Make a new connection
+	Driver = get_driver( getattr(Provider, vpsprovider_driver) )
+
+	try:
+		conn = Driver(user, key)
+	except(NameError):
+		conn = Driver(key)
 
 	# We'll use the distro and size from the config ini
-	preferred_image = [image for image in images if config_distro in image.name]
-	assert len(preferred_image) == 1, "We found more than one image for %s, will be assuming the first one" % config_distro
+	preferred_image = [image for image in conn.list_images() if config_distro in image.name]
+	preferred_size = [size for size in conn.list_sizes() if config_size in size.name]
 
-	preferred_size = [size for size in sizes if config_size in size.name]
-
-	dispatch = [ 
+	# Task dispatcher to be run after provisioning the server
+	dispatch = [
 		SSHKeyDeployment(open(os.path.expanduser("~/.ssh/id_rsa.pub")).read()),
 		ScriptDeployment("echo 'deb http://www.backports.org/debian lenny-backports main contrib non-free' >> /etc/apt/sources.list"),
 		ScriptDeployment("apt-get update"),
@@ -109,7 +145,7 @@ def main():
 		ScriptDeployment("echo 'postfix postfix/destinations string localhost.localdomain, localhost' | debconf-set-selections"),
 		ScriptDeployment("apt-get -y install postfix mailx python-boto at")
 	]
-	msd = MultiStepDeployment(dispatch) 
+	msd = MultiStepDeployment(dispatch)
 
 	# Create and deploy a new server now, and run the deployment steps defined above
 	print "Provisioning server and running deployment processes"
@@ -123,15 +159,15 @@ def main():
 	ssh_connect(remote_host)
 
 	# Deploy our scripts
-	print "Uploading scripts"
-	deploy_scripts()
+	print "Deploying scripts"
+	deploy_script()
 
         # Make some customisations to the server
         print "Securing SSH, setting a firewall and self-destruct for 48 hours"
         deploy_customisations()
 
 	# Run the backup restore script
-	print "Executing the backup restore script"
+	print "Priming the server to run the backup restore script"
 	run_script()
 
 	# End the SSH session

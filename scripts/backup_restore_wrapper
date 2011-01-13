@@ -1,16 +1,23 @@
 #!/bin/bash
 
+SERVER=$1
+EMAIL=$2
+BACKUPPROVIDER=$3
+
 # Source the creds
 source /usr/local/etc/backup_restore_creds
 
-SERVER=$1
-EMAIL=$2
+# TODO: abstract this so restoring from CF works
+sh /usr/local/bin/backup_restore $SERVER $BACKUPPROVIDER > $HOME/emailmessage.txt
 
-# Run the main script
-sh /usr/local/bin/backup_restore $SERVER > $HOME/emailmessage.txt
+if [ $BACKUPPROVIDER == "Amazon" ]; then
+  unset AWS_ACCESS_KEY_ID
+  unset AWS_SECRET_ACCESS_KEY
+else
+  unset CLOUDFILES_USERNAME
+  unset CLOUDFILES_APIKEY
+fi
 
-unset AWS_ACCESS_KEY_ID
-unset AWS_SECRET_ACCESS_KEY
 unset PASSPHRASE
 
 rm /usr/local/etc/backup_restore_creds

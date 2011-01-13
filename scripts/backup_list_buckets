@@ -11,6 +11,6 @@ conn = S3Connection()
 rs = conn.get_all_buckets()
 
 for b in rs:
-	matchObj = re.match(server, b.name)
+	matchObj = re.search(server, b.name)
 	if matchObj:
 		print b.name

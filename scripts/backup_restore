@@ -17,6 +17,41 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see http://www.gnu.org/licenses/.
 
+s3_restore() {
+  # Find a list of buckets based on the server name provided.
+  BUCKETS=`python /usr/local/bin/backup_list_buckets $SERVER`
+
+  # Loop over the buckets found, and for each directory in that bucket,
+  # do a restore of those dirs 
+  for bucket in ${BUCKETS[*]}; do
+    DIRS=`python /usr/local/bin/backup_list_bucket_keys $bucket | awk {'print $2'} | cut -d, -f2 | cut -d/ -f1 | uniq`
+    for dir in ${DIRS[*]}; do
+      echo "Creating $RESTORE_DIR/$bucket/$dir"
+      mkdir -p $RESTORE_DIR/$bucket/$dir
+      echo "Restoring $bucket/$dir to $RESTORE_DIR/$bucket/$dir"
+      duplicity restore s3+http://$bucket/$dir $RESTORE_DIR/$bucket/$dir
+      echo "Now running a collection-status report of your backups in $bucket"
+      duplicity collection-status s3+http://$bucket/$dir
+      echo "----------------------------------------------------------------------------"
+    done
+  done
+}
+
+# Doesn't work yet. CF doesn't support 'folders' inside containers
+cf_restore() {
+# Loop over the backup directories and do a restore of each one to 
+# a subdirectory of $RESTORE_DIR
+for bucket in ${BUCKETS[*]}; do
+  echo "Creating $RESTORE_DIR/$bucket"
+  mkdir -p $RESTORE_DIR/$bucket
+  echo "Restoring $SERVER bucket $bucket to $RESTORE_DIR/$bucket"
+  duplicity restore cf+http://$bucket $RESTORE_DIR/$bucket
+  echo "Now running a collection-status report of your backups in $bucket"
+  duplicity collection-status s3+http://$bucket
+  echo "----------------------------------------------------------------------------"
+done
+}
+
 if [ -z "$1" ]; then
   echo "No server name provided."
   exit 1
@@ -24,13 +59,13 @@ fi
 
 shopt -s nullglob
 
+
 IP=`/sbin/ifconfig eth0 | grep "inet addr" | awk '{print $2}' | cut -d: -f2`
 SERVER=$1
+BACKUPPROVIDER=$2
 
 # Restore directory
 RESTORE_DIR=/tmp/backups/$SERVER-`date '+%F-%H%M'`
-
-BUCKETS=`python /usr/local/bin/backup_list_buckets $SERVER`
 
 # Greeting text for the email report
 echo "This is a backup restore of $SERVER executed on `date '+%F'` at `date '+%H:%M'`."
@@ -38,14 +73,8 @@ echo "The backups will be restored to $RESTORE_DIR on a temporary server with th
 echo "This machine will self destruct after 48 hours."
 echo "----------------------------------------------------------------------------"
 
-# Loop over the backup directories and do a restore of each one to 
-# a subdirectory of $RESTORE_DIR
-for bucket in ${BUCKETS[*]}; do
-  echo "Creating $RESTORE_DIR/$bucket"
-  mkdir -p $RESTORE_DIR/$bucket
-  echo "Restoring $SERVER bucket $bucket to $RESTORE_DIR/$bucket"
-  duplicity restore s3+http://$bucket $RESTORE_DIR/$bucket
-  echo "Now running a collection-status report of your backups in $bucket"
-  duplicity collection-status s3+http://$bucket
-  echo "----------------------------------------------------------------------------"
-done
+if [ $BACKUPPROVIDER == "Amazon" ]; then
+  s3_restore
+else
+  cf_restore
+fi
