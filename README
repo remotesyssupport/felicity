@@ -22,6 +22,11 @@ Dependencies:
 
 Usage:
 
- * Read the config/felicity.ini and update to suit.
- * python felicity $servername
+ * Copy config/felicity.ini.example to config/felicity.ini and customise to suit.
+ * Put an authorized_keys file containing at least one SSH public key in config/
+ * Ensure you have an id_rsa private key in your ~/.ssh dir.
+
+ * Either run it from CLI like: /home/$user/felicity/felicity <servername>, or
+ * Create a .forward file in your home dir containing: "| /home/$user/felicity/felicity"
+   ...and send an e-mail to this user with the <servername> as the Subject line.
 
