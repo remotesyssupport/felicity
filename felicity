@@ -11,13 +11,11 @@ import os
 import random
 import sys
 import ConfigParser
-from email import Parser
-
 
 ssh = 0
 # Fetch some values from the config file
 config = ConfigParser.RawConfigParser()
-config.read(os.path.expanduser('~/felicity/config/felicity.ini'))
+config.read('config/felicity.ini')
 
 # Where will we create a new VPS?
 vpsprovider = config.get('Felicity', 'vpsprovider')
@@ -38,6 +36,11 @@ config_size = config.get(vpsprovider, 'size')
 # Where should we send the report to?
 email = config.get('Felicity', 'email')
 
+# What server are we restoring? This will also become part of the new VPS hostname
+server = sys.argv[1]
+
+# Hostname of the new VPS
+hostname = 'backup-restore-"%s"%d' % tuple([server, random.randrange(0, 101, 2)])
 
 # Where are the backups?
 backupprovider = config.get('Felicity', 'backupprovider')
@@ -45,28 +48,13 @@ backupprovider = config.get('Felicity', 'backupprovider')
 # The Duplicity passphrase, for decrypting during restore
 passphrase = config.get('Felicity', 'passphrase')
 
-server = 0
 
-# Let's test to see if the request has come in via email or from CLI
-def process_request():
-	if not sys.stdin.isatty():
-		# Probably come in via e-mail
-		headers = Parser.Parser().parse(sys.stdin)
-		if email in headers.get('From'):
-			global server
-			server = headers.get('Subject')
-		else:
-			raise SystemExit("Unauthorised.")
-	else:
-		# Come in from CLI. server name should be an arg.
-		server = sys.argv[1]
 
-# Run some dependency checks
 def dependency_check():
         try:
-                open(os.path.expanduser('~/felicity/config/authorized_keys')).read()
+                open(os.path.expanduser("~/.ssh/id_rsa.pub")).read()
         except IOError:
-                print "You need an authorized_keys file in the config directory."
+                print "You need at least a public key called id_rsa.pub in your .ssh directory"
                 sys.exit(1)
         try:
                 import paramiko
@@ -105,7 +93,7 @@ def deploy_script():
 
         scripts = ['backup_list_buckets', 'backup_list_bucket_keys', 'backup_restore_wrapper', 'backup_restore', 'firewall']
 	for script in scripts:
-        	ftp.put(os.path.expanduser('~/felicity/scripts/' + script), '/usr/local/bin/' + script)
+        	ftp.put(os.path.expanduser('scripts/' + script), '/usr/local/bin/' + script)
 		script_file = ftp.open('/usr/local/bin/' + script, 'r')
 		script_file.chmod(0755)
 		script_file.close()
@@ -134,9 +122,6 @@ def main():
         # Run some tests
         dependency_check()
 
-	# handle inbound request
-	process_request()
-
 	# Make a new connection
 	Driver = get_driver( getattr(Provider, vpsprovider_driver) )
 
@@ -151,7 +136,7 @@ def main():
 
 	# Task dispatcher to be run after provisioning the server
 	dispatch = [
-		SSHKeyDeployment(open(os.path.expanduser('~/felicity/config/authorized_keys')).read()),
+		SSHKeyDeployment(open(os.path.expanduser("~/.ssh/id_rsa.pub")).read()),
 		ScriptDeployment("echo 'deb http://www.backports.org/debian lenny-backports main contrib non-free' >> /etc/apt/sources.list"),
 		ScriptDeployment("apt-get update"),
 		ScriptDeployment("apt-get -y -t lenny-backports install duplicity"),
@@ -164,8 +149,6 @@ def main():
 
 	# Create and deploy a new server now, and run the deployment steps defined above
 	print "Provisioning server and running deployment processes"
-	# Hostname of the new VPS
-	hostname = 'backup-restore-"%s"%d' % tuple([server, random.randrange(0, 101, 2)])
 	node = conn.deploy_node(name=hostname, image=preferred_image[0], size=preferred_size[0], deploy=msd)
 
 	# This is the public IP of the new server that will be used for further steps
@@ -194,4 +177,3 @@ def main():
 
 if __name__ == "__main__":
 	main()
-	sys.exit(0)
