@@ -1,0 +1,17 @@
+[Felicity]
+email=you@example.com
+vpsprovider=Rackspace
+backupprovider=Amazon
+passphrase=secret_gpg_passphrase
+
+[Rackspace]
+driver=RACKSPACE
+user=your_username
+key=your_api_key
+distro=Debian
+size=512
+
+[Amazon]
+driver=EC2
+user=your_user_key_id
+key=your_secret_api_key
