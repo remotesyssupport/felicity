@@ -39,8 +39,6 @@ s3_restore() {
 
 # Doesn't work yet. CF doesn't support 'folders' inside containers
 cf_restore() {
-# Find a list of buckets based on the server name provided.
-BUCKETS=`python /usr/local/bin/backup_list_containers $SERVER`
 # Loop over the backup directories and do a restore of each one to 
 # a subdirectory of $RESTORE_DIR
 for bucket in ${BUCKETS[*]}; do
@@ -49,7 +47,7 @@ for bucket in ${BUCKETS[*]}; do
   echo "Restoring $SERVER bucket $bucket to $RESTORE_DIR/$bucket"
   duplicity restore cf+http://$bucket $RESTORE_DIR/$bucket
   echo "Now running a collection-status report of your backups in $bucket"
-  duplicity collection-status cf+http://$bucket
+  duplicity collection-status s3+http://$bucket
   echo "----------------------------------------------------------------------------"
 done
 }

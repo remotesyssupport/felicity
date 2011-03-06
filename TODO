@@ -4,6 +4,8 @@ Things to do
 Definitely
 ----------
 
+ * There is no error checking right now
+
  * make things more configurable in .ini
 
  * Improve the efficiency of scripts, not sure if we really need to use `at` but it seemed to solve the issue of duplicity simply not running?
