@@ -18,7 +18,7 @@ Tonnes of ugly hacks at this stage, working on things from the TODO.
 
 Dependencies:
 
- * libcloud, python, python-paramiko
+ * libcloud, python, fabric
 
 Usage:
 
